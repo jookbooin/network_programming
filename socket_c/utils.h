@@ -3,6 +3,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-void error_handling(char * message);
 
+#define END_MSG "end"
+void error_handling(char * message);
+typedef struct thread_data{
+	char id[100];
+	char msg[1000];
+} thread_data; 
 #endif

@@ -13,17 +13,18 @@
 #define CLNT_MAX 10
 #define BUFFSIZE 200
 
+// server에 연결된 client socket_fd 번호 저장 
 int g_clnt_socks[CLNT_MAX];
 int g_clnt_count = 0;
 
 pthread_mutex_t g_mutex;
 
-void send_all_clnt(char * msg, void* arg);
-void * read_connected_clnt(void * arg);
+void send_clnt(thread_data* data, void* arg);
+void send_all_clnt(thread_data * data, void* arg);
+void * read_clnt(void * arg);
 void serv_addr_init(struct sockaddr_in* serv_addr, int port_num);
 void serv_bind(int* serv_sock, struct sockaddr_in *serv_addr);
 void serv_listen(int* serv_sock, int backlog);
-
 
 int main(int argc, char ** argv ){
 
@@ -38,7 +39,6 @@ int main(int argc, char ** argv ){
 	int recv_len = 0;
 	int * clnt_sock_ptr;
 	socklen_t clnt_addr_size;
-
 
 	// mutex_init
 	pthread_mutex_init(&g_mutex,NULL);
@@ -72,13 +72,13 @@ int main(int argc, char ** argv ){
 		g_clnt_socks[g_clnt_count++] = clnt_sock;
 		pthread_mutex_unlock(&g_mutex);
 
-		// 
+		// 5. read clnt_sock 
 		clnt_sock_ptr = (int*)malloc(sizeof(int));
 		*clnt_sock_ptr = clnt_sock;
-		int create = pthread_create(&serv_thread, NULL, read_connected_clnt,(void*) clnt_sock_ptr);
+		int read_clnt_t = pthread_create(&serv_thread, NULL, read_clnt,(void*) clnt_sock_ptr);
 
-		if(create != 0){
-			free(clnt_sock_ptr);
+		if(read_clnt_t != 0){
+			//free(clnt_sock_ptr);
 			error_handling("pthread_create error.\n");
 		}
 	}
@@ -86,59 +86,77 @@ int main(int argc, char ** argv ){
 	return 0;
 }
 
-void send_all_clnt(char * msg, void* arg){
+void send_clnt(thread_data* data, void* arg){
+	int clnt_sock = *(int*)arg; 
+	pthread_mutex_lock(&g_mutex);
+	write(clnt_sock, data, sizeof(*data)); 
+	pthread_mutex_unlock(&g_mutex); 
+}
 
-	int my_sock = *(int*)arg;
+void send_all_clnt(thread_data * data, void* arg){
+
+	int clnt_sock = *(int*)arg;
 	pthread_mutex_lock(&g_mutex); 
-	printf("send sock id [%d] => ", my_sock);
+	printf("send sock id [%d] => ", clnt_sock);
 
 	for(int i = 0; i<g_clnt_count; i++){
-		if(g_clnt_socks[i] != my_sock){
-			write(g_clnt_socks[i], msg, strlen(msg)+1);
+		if(g_clnt_socks[i] != clnt_sock){
+
+			// client recv_thread로 
+			write(g_clnt_socks[i], data, sizeof(data));
 		}
 	}
 	pthread_mutex_unlock(&g_mutex); 
 }
 
-void * read_connected_clnt(void * arg){
+void * read_clnt(void * arg){
 
 	int clnt_sock = *(int*)arg;
 	int str_len = 0;
 
-	char msg_buff[BUFFSIZE];
+	thread_data data;
 	int i;
 
 	while(1){
 		// 1. read
-		str_len = read(clnt_sock, msg_buff, sizeof(msg_buff));
+		str_len = read(clnt_sock, &data, sizeof(data));
 		if(str_len == -1){
 			printf("clnt[%d] read error()\n",clnt_sock);
 			break;
 		}
 
-		// 2. send
-		send_all_clnt(msg_buff, arg);
-		printf("%s\n",msg_buff);
+		// q 종료 조건 
+		if (strcmp(data.msg, END_MSG) == 0) {
+			// clnt recv 종료
+			send_clnt(&data,arg);
+			break;
+			
+		}else{
+			// 2. send
+			//send_all_clnt(&data, arg);
+			printf("[%s] : %s\n",data.id,data.msg);
+		}
 
 	}
 
 	// delete socket 
-	pthread_mutex_lock(&g_mutex);
-	for(int i = 0; i < g_clnt_count; i++){
-		if(clnt_sock == g_clnt_socks[i]){
+	//pthread_mutex_lock(&g_mutex);
+	//for(int i = 0; i < g_clnt_count; i++){
+		//if(clnt_sock == g_clnt_socks[i]){
 
 			// move -1 
-			for(int j = i; g_clnt_count - 1; j++){
-				g_clnt_socks[j] = g_clnt_socks[j+1];
-			}
+			//for(int j = i; g_clnt_count - 1; j++){
+				//g_clnt_socks[j] = g_clnt_socks[j+1];
+			//}
 
 			// delete 
-			g_clnt_count--;
-			break;
-		}
-	}
-	pthread_mutex_unlock(&g_mutex); 
-
+			//g_clnt_count--;
+			//break;
+		//}
+	//}
+	//pthread_mutex_unlock(&g_mutex); 
+	
+	printf("클라이언트[%d]가 종료했으므로  소켓이 제거됩니다..\n", clnt_sock);
 	close(clnt_sock);
 	free(arg);
 	pthread_exit(0);
