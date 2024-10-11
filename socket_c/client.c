@@ -9,12 +9,11 @@
 
 #define BUFFSIZE 100
 #define NAMESIZE 20
-
-
-char message[BUFFSIZE];
+#define LOOPBACK "127.0.0.1"
 
 void * recv_msg(void * arg);
 void * send_msg(void * arg);
+void serv_addr_init(struct sockaddr_in* serv_addr, int port_num);
 
 typedef struct send_data{
 	int clnt_sock;
@@ -24,8 +23,6 @@ typedef struct send_data{
 int main(int argc, char ** argv){
 	int clnt_sock;
 	struct sockaddr_in serv_addr;
-	void *thread_result;	
-	//int *recv_sock_ptr,*send_sock_ptr;
 	pthread_t send_thread, recv_thread;
 
 	thread_data tdata;
@@ -35,18 +32,19 @@ int main(int argc, char ** argv){
 		printf("you have to enter port, ID\n");
 		return 0;
 	}
-		
+
 	// 1. client socket 생성
 	clnt_sock = socket(PF_INET, SOCK_STREAM, 0);
 	if(clnt_sock == -1){
 		error_handling("socket() error\n");	
 	}
-	
+
 	// 2. 초기화
-	memset(&serv_addr, 0, sizeof(serv_addr));
-	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	serv_addr.sin_port = htons(atoi(argv[1]));	
+	serv_addr_init(&serv_addr,atoi(argv[1]));
+	//memset(&serv_addr, 0, sizeof(serv_addr));
+	//serv_addr.sin_family = AF_INET;
+	//serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	//serv_addr.sin_port = htons(atoi(argv[1]));	
 
 	// 3. clnt -> server connect
 	if(connect(clnt_sock,(struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1){
@@ -54,7 +52,7 @@ int main(int argc, char ** argv){
 	}else{
 		printf("connection success\n");
 	}
-	
+
 	// thread_data, send_data 초기화
 	strcpy(tdata.id, argv[2]);
 	printf("[%d] :  %s 입장!!!!!!!!!!!!\n",clnt_sock,tdata.id);
@@ -62,13 +60,14 @@ int main(int argc, char ** argv){
 	sdata.data = &tdata;
 
 	// 4. recv thread
-
-	int recv_t = pthread_create(&recv_thread, NULL, recv_msg, (void*)&clnt_sock);
+	int* recv_sock_ptr = (int*)malloc(sizeof(int));
+	*recv_sock_ptr = clnt_sock;
+	int recv_t = pthread_create(&recv_thread, NULL, recv_msg, (void*)recv_sock_ptr);
 
 	if(recv_t != 0){
 		error_handling("pthread_create() error!\n");
 	}
-	
+
 	// 4. send thread
 	int send_t = pthread_create(&send_thread, NULL, send_msg,(void*)&sdata);
 
@@ -78,10 +77,9 @@ int main(int argc, char ** argv){
 
 
 	// 자원 회수 
-	pthread_detach(recv_thread);
+	pthread_join(recv_thread,NULL);
 	pthread_join(send_thread,NULL);
 
-	//close(clnt_sock);
 	return 0;
 }
 
@@ -106,20 +104,23 @@ void * recv_msg(void * arg){
 			break;
 		}
 
-		printf("[%s] : %s",temp.id, temp.msg);
+		printf("[%s] : %s\n",temp.id, temp.msg);
 	}
 
 	printf("recv_thread end!\n");
-	//free(arg);
+
+	// clnt_sock 제거
+	close(clnt_sock);
+	free(arg);
 
 	// thread 종료
-	//pthread_exit(0);
+	pthread_exit(0);
 	return 0;
 }
 
 void * send_msg(void * arg){
 	char input[300];
-	
+
 	printf("client send_thread created!\n");
 	//int send_sock = *(int*)arg;
 	send_data temp = *(send_data*)arg;
@@ -136,10 +137,10 @@ void * send_msg(void * arg){
 			break;
 		}
 
-		//sprintf(msg,"[%s] : %s\n",id, input);
 		strcpy(temp.data->msg,input);
 		write(temp.clnt_sock,temp.data,sizeof(*temp.data));	
 		sleep(1);
+		printf("\n");
 	}
 
 	printf("send_thread end!\n");
@@ -149,3 +150,10 @@ void * send_msg(void * arg){
 
 }
 
+void serv_addr_init(struct sockaddr_in* serv_addr, int port_num){
+        memset(serv_addr, 0, sizeof(*serv_addr)); // port(16bit) + ip(32bit) + sin_zero(8byte)
+
+        serv_addr->sin_family = AF_INET; // ipv4
+        serv_addr->sin_addr.s_addr = inet_addr(LOOPBACK);
+        serv_addr->sin_port = htons(port_num);
+}

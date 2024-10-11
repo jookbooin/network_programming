@@ -20,7 +20,7 @@ $(EXE_CLIENT): client.o utils.o
 
 clean:  
 	rm -f *.o $(EXE_SERVER) $(EXE_CLIENT)
-
+	rm -f *.swp
 good:
 	@echo good
 

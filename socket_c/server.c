@@ -103,7 +103,7 @@ void send_all_clnt(thread_data * data, void* arg){
 		if(g_clnt_socks[i] != clnt_sock){
 
 			// client recv_thread로 
-			write(g_clnt_socks[i], data, sizeof(data));
+			write(g_clnt_socks[i], data, sizeof(*data));
 		}
 	}
 	pthread_mutex_unlock(&g_mutex); 
@@ -133,13 +133,13 @@ void * read_clnt(void * arg){
 			
 		}else{
 			// 2. send
-			//send_all_clnt(&data, arg);
+			send_all_clnt(&data, arg);
 			printf("[%s] : %s\n",data.id,data.msg);
 		}
 
 	}
 
-	// delete socket 
+	// delete clnt_sock 
 	//pthread_mutex_lock(&g_mutex);
 	//for(int i = 0; i < g_clnt_count; i++){
 		//if(clnt_sock == g_clnt_socks[i]){
