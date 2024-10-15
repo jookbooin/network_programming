@@ -140,21 +140,21 @@ void * read_clnt(void * arg){
 	}
 
 	// delete clnt_sock 
-	//pthread_mutex_lock(&g_mutex);
-	//for(int i = 0; i < g_clnt_count; i++){
-		//if(clnt_sock == g_clnt_socks[i]){
+	pthread_mutex_lock(&g_mutex);
+	for(int i = 0; i < g_clnt_count; i++){
+		if(clnt_sock == g_clnt_socks[i]){
 
-			// move -1 
-			//for(int j = i; g_clnt_count - 1; j++){
-				//g_clnt_socks[j] = g_clnt_socks[j+1];
-			//}
+			//move -1 
+			for(int j = i; g_clnt_count - 1; j++){
+				g_clnt_socks[j] = g_clnt_socks[j+1];
+			}
 
-			// delete 
-			//g_clnt_count--;
-			//break;
-		//}
-	//}
-	//pthread_mutex_unlock(&g_mutex); 
+			//delete 
+			g_clnt_count--;
+			break;
+		}
+	}
+	pthread_mutex_unlock(&g_mutex); 
 	
 	printf("클라이언트[%d]가 종료했으므로  소켓이 제거됩니다..\n", clnt_sock);
 	close(clnt_sock);
